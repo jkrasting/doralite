@@ -24,12 +24,16 @@ def dora_metadata(expid):
     return x
     
 
-def search(string):
+def search(string, attribute='pathPP'):
+    """Returns dictionary of an attribute keyed by the id of experiments
+    matching "string".
+
+    By default, the returned attribute is the post-processing path ("pathPP")
+    but others such as "pathDB", "pathAnalysis" and "expName" are allowed.
+    If no match is found an empty dictionary is returned."""
     query = api+'search.py?search='+str(string)
-    x = requests.get(url=query).content
-    x = json.loads(x)
-    for expid in x.keys():
-        print('* '+str(expid)+' '+x[expid]['pathPP'])
+    x = json.loads( requests.get(url=query).content )
+    return dict((int(k),x[k][attribute]) for k in x.keys())
 
 def global_mean_data(expid,component,varlist=None,start=None,end=None,yearshift=None,
         output='dataframe',showquery=False):
