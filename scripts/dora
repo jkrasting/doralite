@@ -38,8 +38,12 @@ These commands are available for interacting with Dora:
         parser = argparse.ArgumentParser(
             description='Download objects and refs from another repository')
         parser.add_argument('searchstr')
+        parser.add_argument('-a','--attribute',default='pathPP')
         args = parser.parse_args(sys.argv[2:])
-        doralite.search(args.searchstr)
+        search_results = doralite.search(args.searchstr,
+                                         attribute=args.attribute)
+        for k in sorted(search_results.keys()):
+            print(f' * {k}  {search_results[k]}')
 
 if __name__ == '__main__':
     DoraCLI()
