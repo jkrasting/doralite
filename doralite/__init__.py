@@ -18,7 +18,10 @@ class DoraDataFrame(pd.DataFrame):
 
 def dora_metadata(expid):
     query = api+'meta.py?id='+str(expid)
-    x = requests.get(url=query).content
+    try:
+        x = requests.get(url=query).content
+    except:
+        x = requests.get(url=query,verify=False).content
     x = json.loads(x)
     x['pathHistory'] = x['pathPP'].replace('/pp','/history')
     return x
@@ -32,7 +35,10 @@ def search(string, attribute='pathPP'):
     but others such as "pathDB", "pathAnalysis" and "expName" are allowed.
     If no match is found an empty dictionary is returned."""
     query = api+'search.py?search='+str(string)
-    x = json.loads( requests.get(url=query).content )
+    try:
+        x = json.loads( requests.get(url=query).content )
+    except:
+        x = json.loads( requests.get(url=query,verify=False).content )
     return dict((int(k),x[k][attribute]) for k in x.keys())
 
 def global_mean_data(expid,component,varlist=None,start=None,end=None,yearshift=None,
@@ -63,7 +69,10 @@ def global_mean_data(expid,component,varlist=None,start=None,end=None,yearshift=
     if showquery:
         print(query)
 
-    x = requests.get(url=query).content
+    try:
+        x = requests.get(url=query).content
+    except:
+        x = requests.get(url=query,verify=False).content
 
     if output == 'csv':
         return io.StringIO(x.decode('utf8'))
