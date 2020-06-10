@@ -44,6 +44,23 @@ def search(string, attribute="pathPP"):
     return dict((int(k), x[k][attribute]) for k in x.keys())
 
 
+def csv_to_pd(csv, comment="#", delim_whitespace=False, metadata=None):
+    """Function to convert csv output to Pandas Dataframe"""
+    df = pd.read_csv(csv, comment=comment, delim_whitespace=delim_whitespace)
+    df["year"] = cftime.num2date(
+        (df.year * 365.0) - (365.0 / 2.0) - 1,
+        "days since 0001-01-01",
+        calendar="365_day",
+    )
+    df.rename(columns={"year": "date"}, inplace=True)
+    df.set_index("date", inplace=True)
+    df = DoraDataFrame(df)
+    if metadata is not None:
+        df.id = metadata["id"]
+        df.title = metadata["expName"]
+    return df
+
+
 def global_mean_data(
     expid,
     component,
@@ -91,22 +108,11 @@ def global_mean_data(
     if output == "dataframe":
         if component == "c4mip":
             df = pd.read_csv(
-                io.StringIO(x.decode("utf8")), comment="#", delim_whitespace=True
+                io.StringIO(x.decode("utf8")),
+                delim_whitespace=True,
+                metadata=dora_metadata(expid),
             )
             df.set_index("YEAR", inplace=True)
         else:
-            df = pd.read_csv(io.StringIO(x.decode("utf8")), comment="#")
-            df["year"] = cftime.num2date(
-                (df.year * 365.0) - (365.0 / 2.0) - 1,
-                "days since 0001-01-01",
-                calendar="365_day",
-            )
-            # d_time = cftime.num2date((df.year * 365.) - (365./2.),'days since 0001-01-01',calendar='365_day')
-            # df['year'] = [nc_time_axis.CalendarDateTime(item, "365_day") for item in d_time]
-            df.rename(columns={"year": "date"}, inplace=True)
-            df.set_index("date", inplace=True)
-            df = DoraDataFrame(df)
-            _meta = dora_metadata(expid)
-            df.id = _meta["id"]
-            df.title = _meta["expName"]
+            df = csv_to_pd(io.StringIO(x.decode("utf8")), metadata=dora_metadata(expid))
         return df
