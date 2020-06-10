@@ -12,6 +12,13 @@ import requests
 api = "https://dora-dev.gfdl.noaa.gov/cgi-bin/analysis/"
 
 
+def _remove_trend(x, y):
+    """Internal function to remove a linear trend"""
+    m, b = np.polyfit(x, y, 1)
+    fit = m * x
+    return y - fit
+
+
 class DoraDataFrame(pd.DataFrame):
     def smooth(self, window, extrap=False):
         _df = self.rolling(window, center=True).mean()
@@ -19,6 +26,15 @@ class DoraDataFrame(pd.DataFrame):
             _df.fillna(method="ffill", inplace=True)
             _df.fillna(method="bfill", inplace=True)
         return _df
+
+    def detrend(self, order=1):
+        tindex = np.array(
+            [
+                cftime.date2num(x, "days since 0001-01-01", calendar="noleap")
+                for x in self.index
+            ]
+        )
+        return self.apply(lambda x: (_remove_trend(tindex, x)))
 
 
 class timeseries:
