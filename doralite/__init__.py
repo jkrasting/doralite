@@ -1,8 +1,11 @@
 import cftime
 import io
 import json
+import math
 import nc_time_axis
+import numpy as np
 import os
+import sqlite3
 import pandas as pd
 import requests
 
@@ -16,6 +19,39 @@ class DoraDataFrame(pd.DataFrame):
             _df.fillna(method="ffill", inplace=True)
             _df.fillna(method="bfill", inplace=True)
         return _df
+
+
+class timeseries:
+    def __init__(self, f, var, scale=1.0, multiply_by_area=False, legacy_land=False):
+        con = sqlite3.connect(f)
+        cur = con.cursor()
+        if legacy_land is True:
+            res = cur.execute("SELECT year,sum FROM " + var)
+        else:
+            res = cur.execute("SELECT year,value FROM " + var)
+        results = cur.fetchall()
+        self.t, self.data = zip(*results)
+        self.t = np.array(self.t)
+        if multiply_by_area is True:
+            res = cur.execute("SELECT name FROM sqlite_master where TYPE='table'")
+            tables = [str(record[0]) for record in cur.fetchall()]
+            if "cell_measure" in tables:
+                res = cur.execute(
+                    "SELECT value FROM cell_measure where var='" + var + "'"
+                )
+                cell_measure = cur.fetchone()[0]
+            else:
+                cell_measure = "area"
+            res = cur.execute("SELECT value FROM " + cell_measure)
+            area = np.array(cur.fetchall()).squeeze()
+            scale = area * scale
+        self.data = np.array(self.data) * scale
+        cur.close()
+        con.close()
+        A = set(np.arange(self.t.min(), self.t.max() + 1)) - set(self.t)
+        if len(list(A)) != 0:
+            print("# WARNING: Timeseries is incomplete for " + var, A)
+        self.dict = dict(zip(self.t, self.data))
 
 
 def dora_metadata(expid):
@@ -58,6 +94,56 @@ def csv_to_pd(csv, comment="#", delim_whitespace=False, metadata=None):
     if metadata is not None:
         df.id = metadata["id"]
         df.title = metadata["expName"]
+    return df
+
+
+def read_db(
+    dbfile,
+    variables=None,
+    yearshift=0.0,
+    legacy_land=False,
+    start=-1 * math.inf,
+    end=math.inf,
+):
+    """Function to read sqlite dbfile"""
+
+    if variables is None:
+        conn = sqlite3.connect(dbfile)
+        c = conn.cursor()
+        sql = "SELECT name FROM sqlite_master WHERE type='table'"
+        sqlres = c.execute(sql)
+        variables = [str(record[0]) for record in c.fetchall()]
+        c.close()
+        conn.close()
+        removes = ["units", "long_name", "cell_measure"]
+        variables = [x for x in variables if x not in removes]
+
+    # -- Loop over variables
+    data = {}
+    years = []
+    skipped = []
+    for n, var in enumerate(variables):
+        try:
+            ts = timeseries(dbfile, var, legacy_land=legacy_land)
+            if len(ts.t) > 0:
+                data[var] = ts.data
+                years = years + list(ts.t)
+        except:
+            skipped.append(var)
+
+    years = list(set(years))
+    years = [x + float(yearshift) for x in years]
+
+    variables = list(set(variables) - set(skipped))
+
+    df = pd.DataFrame(data, index=years)
+    df = df[(df.index >= start) & (df.index <= end)]
+    df.index = cftime.num2date(
+        (df.index * 365.0) - (365.0 / 2.0) - 1,
+        "days since 0001-01-01",
+        calendar="365_day",
+    )
+    df = DoraDataFrame(df)
     return df
 
 
