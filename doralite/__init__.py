@@ -25,7 +25,8 @@ def _remove_trend(x, y, order=1, anomaly=True, return_coefs=False, coefs=None):
     if anomaly is True:
         return y - fit
     else:
-        return y - fit + coefs[-1]
+        fit = fit - fit[0]
+        return y - fit
 
 
 def _calc_trend(x, y, order=1):
