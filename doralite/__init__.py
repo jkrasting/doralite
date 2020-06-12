@@ -14,6 +14,8 @@ api = "https://dora-dev.gfdl.noaa.gov/cgi-bin/analysis/"
 
 def _remove_trend(x, y, order=1, anomaly=True, return_coefs=False, coefs=None):
     """Internal function to remove a linear trend"""
+    if None in list(y):
+        return None
     if coefs is None:
         coefs = np.polyfit(x, y, order)
         if return_coefs is True:
@@ -36,6 +38,17 @@ def _remove_reference_trend(t, x, other, anomaly=True):
 
 
 class DoraDataFrame(pd.DataFrame):
+    # temporary properties
+    _internal_names = pd.DataFrame._internal_names + ["internal_cache"]
+    _internal_names_set = set(_internal_names)
+
+    # normal properties
+    _metadata = ["added_property"]
+
+    @property
+    def _constructor(self):
+        return DoraDataFrame
+
     def smooth(self, window, extrap=False):
         _df = self.rolling(window, center=True).mean()
         if extrap is True:
