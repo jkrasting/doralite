@@ -12,12 +12,27 @@ import requests
 api = "https://dora-dev.gfdl.noaa.gov/cgi-bin/analysis/"
 
 
-def _remove_trend(x, y, order=1):
+def _remove_trend(x, y, order=1, anomaly=True, return_coefs=False, coefs=None):
     """Internal function to remove a linear trend"""
-    coefs = np.polyfit(x, y, order)
+    if coefs is None:
+        coefs = np.polyfit(x, y, order)
+        if return_coefs is True:
+            return coefs
     model = np.poly1d(coefs)
     fit = model(x)
-    return y - fit
+    if anomaly is True:
+        return y - fit
+    else:
+        return y - fit + coefs[-1]
+
+
+def _remove_reference_trend(t, x, other, anomaly=True):
+    """Removes trends from a reference dataset"""
+    if str(x.name) not in list(other.columns):
+        return None
+    else:
+        _coefs = other[x.name].to_numpy()
+        return _remove_trend(t, x, anomaly=anomaly, coefs=_coefs)
 
 
 class DoraDataFrame(pd.DataFrame):
@@ -28,14 +43,35 @@ class DoraDataFrame(pd.DataFrame):
             _df.fillna(method="bfill", inplace=True)
         return _df
 
-    def detrend(self, order=1):
+    def detrend(self, reference=None, order=1, anomaly=True, return_coefs=False):
         tindex = np.array(
             [
                 cftime.date2num(x, "days since 0001-01-01", calendar="noleap")
                 for x in self.index
             ]
         )
-        return self.apply(lambda x: (_remove_trend(tindex, x, order=order)))
+        if reference is not None:
+            if order != 1:
+                print(
+                    "Only a linear trend can be removed based on another dataset. Setting order to 1."
+                )
+                order = 1
+            coefs = reference.detrend(order=order, return_coefs=True)
+            return self.apply(
+                lambda x: (_remove_reference_trend(tindex, x, coefs, anomaly=anomaly))
+            )
+        else:
+            return self.apply(
+                lambda x: (
+                    _remove_trend(
+                        tindex,
+                        x,
+                        order=order,
+                        anomaly=anomaly,
+                        return_coefs=return_coefs,
+                    )
+                )
+            )
 
 
 class timeseries:
