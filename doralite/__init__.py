@@ -28,6 +28,13 @@ def _remove_trend(x, y, order=1, anomaly=True, return_coefs=False, coefs=None):
         return y - fit + coefs[-1]
 
 
+def _calc_trend(x, y, order=1):
+    """Internal function to calculate trend line/curve"""
+    coefs = np.polyfit(x, y, order)
+    model = np.poly1d(coefs)
+    return model(x)
+
+
 def _remove_reference_trend(t, x, other, anomaly=True):
     """Removes trends from a reference dataset"""
     if str(x.name) not in list(other.columns):
@@ -35,6 +42,13 @@ def _remove_reference_trend(t, x, other, anomaly=True):
     else:
         _coefs = other[x.name].to_numpy()
         return _remove_trend(t, x, anomaly=anomaly, coefs=_coefs)
+
+
+def reformat_time_axis(ax):
+    """Reformats x-axis labels to YYYY format"""
+    labels = [x.get_text() for x in ax.xaxis.get_ticklabels()]
+    labels = [x.split("-")[0] for x in labels]
+    _ = ax.set_xticklabels(labels)
 
 
 class DoraDataFrame(pd.DataFrame):
@@ -85,6 +99,15 @@ class DoraDataFrame(pd.DataFrame):
                     )
                 )
             )
+
+    def trend(self, order=1, anomaly=True):
+        tindex = np.array(
+            [
+                cftime.date2num(x, "days since 0001-01-01", calendar="noleap")
+                for x in self.index
+            ]
+        )
+        return self.apply(lambda x: (_calc_trend(tindex, x, order=order)))
 
 
 class timeseries:
