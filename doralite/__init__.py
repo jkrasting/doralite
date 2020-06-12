@@ -12,10 +12,11 @@ import requests
 api = "https://dora-dev.gfdl.noaa.gov/cgi-bin/analysis/"
 
 
-def _remove_trend(x, y):
+def _remove_trend(x, y, order=1):
     """Internal function to remove a linear trend"""
-    m, b = np.polyfit(x, y, 1)
-    fit = m * x
+    coefs = np.polyfit(x, y, order)
+    model = np.poly1d(coefs)
+    fit = model(x)
     return y - fit
 
 
@@ -34,7 +35,7 @@ class DoraDataFrame(pd.DataFrame):
                 for x in self.index
             ]
         )
-        return self.apply(lambda x: (_remove_trend(tindex, x)))
+        return self.apply(lambda x: (_remove_trend(tindex, x, order=order)))
 
 
 class timeseries:
