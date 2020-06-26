@@ -9,7 +9,18 @@ import sqlite3
 import pandas as pd
 import requests
 
+import matplotlib.pyplot as plt
+
 api = "https://dora-dev.gfdl.noaa.gov/cgi-bin/analysis/"
+
+
+def proxy(status=True, url="http://localhost:3128"):
+    """Sets https proxy"""
+    if status is True:
+        os.environ["HTTPS_PROXY"] = url
+    if status is False:
+        if "HTTPS_PROXY" in os.environ.keys():
+            os.environ.pop("HTTPS_PROXY")
 
 
 def _remove_trend(x, y, order=1, anomaly=True, return_coefs=False, coefs=None):
@@ -17,7 +28,8 @@ def _remove_trend(x, y, order=1, anomaly=True, return_coefs=False, coefs=None):
     if None in list(y):
         return None
     if coefs is None:
-        coefs = np.polyfit(x, y, order)
+        idx = np.isfinite(x) & np.isfinite(y)
+        coefs = np.polyfit(x[idx], y[idx], order)
         if return_coefs is True:
             return coefs
     model = np.poly1d(coefs)
@@ -31,7 +43,8 @@ def _remove_trend(x, y, order=1, anomaly=True, return_coefs=False, coefs=None):
 
 def _calc_trend(x, y, order=1):
     """Internal function to calculate trend line/curve"""
-    coefs = np.polyfit(x, y, order)
+    idx = np.isfinite(x) & np.isfinite(y)
+    coefs = np.polyfit(x[idx], y[idx], order)
     model = np.poly1d(coefs)
     return model(x)
 
@@ -45,8 +58,10 @@ def _remove_reference_trend(t, x, other, anomaly=True):
         return _remove_trend(t, x, anomaly=anomaly, coefs=_coefs)
 
 
-def reformat_time_axis(ax):
+def reformat_time_axis(ax=None):
     """Reformats x-axis labels to YYYY format"""
+    if ax is None:
+        ax = plt.gca()
     labels = [x.get_text() for x in ax.xaxis.get_ticklabels()]
     labels = [x.split("-")[0] for x in labels]
     _ = ax.set_xticklabels(labels)
@@ -112,7 +127,16 @@ class DoraDataFrame(pd.DataFrame):
 
 
 class timeseries:
-    def __init__(self, f, var, scale=1.0, multiply_by_area=False, legacy_land=False):
+    def __init__(
+        self,
+        f,
+        var,
+        scale=1.0,
+        multiply_by_area=False,
+        legacy_land=False,
+        start=None,
+        end=None,
+    ):
         con = sqlite3.connect(f)
         cur = con.cursor()
         if legacy_land is True:
@@ -138,7 +162,19 @@ class timeseries:
         self.data = np.array(self.data) * scale
         cur.close()
         con.close()
-        A = set(np.arange(self.t.min(), self.t.max() + 1)) - set(self.t)
+        if start is not None:
+            idx = [i for i, val in enumerate(self.t) if val >= start]
+            self.t = self.t[idx]
+            self.data = self.data[idx]
+        else:
+            start = self.t.min()
+        if end is not None:
+            idx = [i for i, val in enumerate(self.t) if val <= end]
+            self.t = self.t[idx]
+            self.data = self.data[idx]
+        else:
+            end = self.t.max() + 1
+        A = set(np.arange(start, end)) - set(self.t)
         if len(list(A)) != 0:
             print("# WARNING: Timeseries is incomplete for " + var, A)
         self.dict = dict(zip(self.t, self.data))
@@ -188,12 +224,7 @@ def csv_to_pd(csv, comment="#", delim_whitespace=False, metadata=None):
 
 
 def read_db(
-    dbfile,
-    variables=None,
-    yearshift=0.0,
-    legacy_land=False,
-    start=-1 * math.inf,
-    end=math.inf,
+    dbfile, variables=None, yearshift=0.0, legacy_land=False, start=None, end=None,
 ):
     """Function to read sqlite dbfile"""
 
@@ -214,7 +245,7 @@ def read_db(
     skipped = []
     for n, var in enumerate(variables):
         try:
-            ts = timeseries(dbfile, var, legacy_land=legacy_land)
+            ts = timeseries(dbfile, var, legacy_land=legacy_land, start=start, end=end)
             if len(ts.t) > 0:
                 data[var] = ts.data
                 years = years + list(ts.t)
@@ -226,6 +257,12 @@ def read_db(
 
     variables = list(set(variables) - set(skipped))
 
+    if start is None:
+        start = -1 * math.inf
+
+    if end is None:
+        end = math.inf
+
     df = pd.DataFrame(data, index=years)
     df = df[(df.index >= start) & (df.index <= end)]
     df.index = cftime.num2date(
@@ -235,6 +272,65 @@ def read_db(
     )
     df = DoraDataFrame(df)
     return df
+
+
+def load_c4mip(locator, obgc="COBALT", legacy=False, start=None, end=None):
+    """Loads C4MIP formatted data for an experiment"""
+    if isinstance(locator, int):
+        dfA = global_mean_data(locator, "globalAveAtmos", start=start, end=end)
+        dfL = global_mean_data(
+            locator, "globalAveLand", legacy_land=legacy, start=start, end=end
+        )
+        dfO = global_mean_data(locator, f"globalAve{obgc}", start=start, end=end)
+    else:
+        dfA = read_db(locator + "/globalAveAtmos.db", start=start, end=end)
+        dfL = read_db(
+            locator + "/globalAveLand.db", legacy_land=legacy, start=start, end=end
+        )
+        dfO = read_db(locator + f"/globalAve{obgc}.db", start=start, end=end)
+    return c4mip(dfA, dfL, dfO, legacy=legacy)
+
+
+def c4mip(dfAtmos, dfLand, dfOcean, validation_diags=False, legacy=False):
+    """Returns a dataframe in C4MIP units"""
+    df = pd.DataFrame()
+    if "t_ref" in list(dfAtmos.columns):
+        df["ST"] = dfAtmos["t_ref"]
+
+    if "XCO2" in list(dfLand.columns):
+        df["CO2"] = dfAtmos["XCO2"] * 1.0e6
+
+    if legacy:
+        if "fco2_ca" in list(dfLand.columns):
+            df["LA_CO2_FLUX"] = dfLand["fco2_ca"] * 86400.0 * 365.0 * 1.0e-12 * -1.0
+    else:
+        if "fco2" in list(dfLand.columns):
+            df["LA_CO2_FLUX"] = (
+                dfLand["fco2"] * dfLand["land_area"] * 86400.0 * 365.0 * 1.0e-12 * -1.0
+            )
+
+    if "dic_stf_gas" in list(dfOcean.columns):
+        df["OA_CO2_FLUX"] = (
+            dfOcean["dic_stf_gas"] * dfOcean["area"] * 86400.0 * 365.0 * 12.0 * 1.0e-15
+        )
+
+    if not legacy:
+        if "" in list(dfLand.columns):
+            df["GPP"] = dfLand["gpp"] * dfLand["land_area"] * 1.0e-12
+        if "" in list(dfLand.columns):
+            df["NPP"] = dfLand["npp"] * dfLand["land_area"] * 1.0e-12
+        if "" in list(dfLand.columns):
+            df["HETRES"] = dfLand["rsoil"] * dfLand["land_area"] * 1.0e-12
+        if "" in list(dfLand.columns):
+            df["CLIVE"] = dfLand["btot"] * dfLand["land_area"] * 1.0e-12
+        if "" in list(dfLand.columns):
+            df["CDEAD"] = dfLand["tot_soil_C"] * dfLand["land_area"] * 1.0e-12
+        if validation_diags is True:
+            df["csmoke_rate"] = dfLand["csmoke_rate"] * dfLand["land_area"] * 1.0e-12
+            df["cwlitt_C"] = dfLand["cwlitt_C"] * dfLand["land_area"] * 1.0e-12
+            df["lflitt_C"] = dfLand["lflitt_C"] * dfLand["land_area"] * 1.0e-12
+
+    return DoraDataFrame(df)
 
 
 def global_mean_data(
