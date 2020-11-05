@@ -334,7 +334,7 @@ def c4mip(dfAtmos, dfLand, dfOcean, validation_diags=False, legacy=False):
 
 
 def global_mean_data(
-    expid,
+    expids,
     component,
     varlist=None,
     start=None,
@@ -346,45 +346,63 @@ def global_mean_data(
     """
     Fetches global means from central server
     """
-    query_dict = {}
-    query_dict["id"] = str(expid)
-    query_dict["component"] = component
-    if start is not None:
-        query_dict["start"] = str(start)
-    if end is not None:
-        query_dict["end"] = str(end)
-    if yearshift is not None:
-        query_dict["yearshift"] = str(yearshift)
 
-    query = []
-    for q in iter(query_dict):
-        query.append("=".join((q, query_dict[q])))
+    if not isinstance(expids, list):
+        expids = [expids]
 
-    query = "&".join(query)
-    query = api + "api.py?" + query
+    dfs = []
+    combined_csv = io.StringIO()
+    for expid in expids:
+        query_dict = {}
+        query_dict["id"] = str(expid)
+        query_dict["component"] = component
+        if start is not None:
+            query_dict["start"] = str(start)
+        if end is not None:
+            query_dict["end"] = str(end)
+        if yearshift is not None:
+            query_dict["yearshift"] = str(yearshift)
 
-    if component == "c4mip":
-        query = api + "c4mip.py?id=" + str(expid)
+        query = []
+        for q in iter(query_dict):
+            query.append("=".join((q, query_dict[q])))
 
-    if showquery:
-        print(query)
+        query = "&".join(query)
+        query = api + "api.py?" + query
 
-    try:
-        x = requests.get(url=query).content
-    except:
-        x = requests.get(url=query, verify=False).content
+        if component == "c4mip":
+            query = api + "c4mip.py?id=" + str(expid)
+
+        if showquery:
+            print(query)
+
+        try:
+            x = requests.get(url=query).content
+        except:
+            x = requests.get(url=query, verify=False).content
+
+        combined_csv.write(x.decode("utf8"))
+        combined_csv.write("\n\n")
+
+        if output == "dataframe":
+            if component == "c4mip":
+                df = pd.read_csv(
+                    io.StringIO(x.decode("utf8")),
+                    delim_whitespace=True,
+                    metadata=dora_metadata(expid),
+                )
+                df.set_index("YEAR", inplace=True)
+            else:
+                df = csv_to_pd(
+                    io.StringIO(x.decode("utf8")), metadata=dora_metadata(expid)
+                )
+            dfs.append(df)
 
     if output == "csv":
-        return io.StringIO(x.decode("utf8"))
-
-    if output == "dataframe":
-        if component == "c4mip":
-            df = pd.read_csv(
-                io.StringIO(x.decode("utf8")),
-                delim_whitespace=True,
-                metadata=dora_metadata(expid),
-            )
-            df.set_index("YEAR", inplace=True)
+        return combined_csv
+    else:
+        if len(dfs) > 1:
+            df = pd.concat(dfs, sort=False)
         else:
-            df = csv_to_pd(io.StringIO(x.decode("utf8")), metadata=dora_metadata(expid))
+            df = dfs[0]
         return df
