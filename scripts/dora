@@ -5,51 +5,56 @@ import doralite
 import gfdlvitals
 import sys
 
-class PlotArgs:
-    def __init__(self,files_dict):
-        self.dbfiles = list(files_dict.keys())
-        self.trend=True
-        self.align=True
-        self.smooth=None
-        self.nyears=None
-        self.labels=str(",").join(list(files_dict.values()))
- 
-class DoraCLI(object):
 
+class PlotArgs:
+    def __init__(self, files_dict):
+        self.dbfiles = list(files_dict.keys())
+        self.trend = True
+        self.align = True
+        self.smooth = None
+        self.nyears = None
+        self.labels = str(",").join(list(files_dict.values()))
+
+
+class DoraCLI(object):
     def __init__(self):
         parser = argparse.ArgumentParser(
-            description='Command line interface to Dora',
-            usage='''dora <command> [<args>]
+            description="Command line interface to Dora",
+            usage="""dora <command> [<args>]
 
 These commands are available for interacting with Dora:
+   search     Searchs experiments listed on Dora for a given string
    info       Prints info/metadata associated with an experiment ID
    plot       Plots scalar diagnostics given a set of Dora IDs
-   search     Searchs experiments listed on Dora for a given string
-''')
-        parser.add_argument('command', help='Subcommand to run')
+                 e.g. dora plot globalAveOcean idnum1 <idnum2 idnum3 ...>
+""",
+        )
+        parser.add_argument("command", help="Subcommand to run")
         args = parser.parse_args(sys.argv[1:2])
         if not hasattr(self, args.command):
-            print('Unrecognized command')
+            print("Unrecognized command")
             parser.print_help()
             exit(1)
         getattr(self, args.command)()
 
     def info(self):
         parser = argparse.ArgumentParser(
-            description='Download objects and refs from another repository')
-        parser.add_argument('expid')
+            description="Download objects and refs from another repository"
+        )
+        parser.add_argument("expid")
         args = parser.parse_args(sys.argv[2:])
         info = doralite.dora_metadata(args.expid)
         print()
         for k in sorted(info.keys()):
             if len(str(info[k])) > 0:
-                print('{:14}'.format(k) + str(info[k]))
+                print("{:14}".format(k) + str(info[k]))
 
     def plot(self):
         parser = argparse.ArgumentParser(
-            description='Plots scalar diagnostics given a set of Dora IDs')
-        parser.add_argument('dbfile')
-        parser.add_argument('expid',nargs="*")
+            description="Plots scalar diagnostics given a set of Dora IDs"
+        )
+        parser.add_argument("dbfile")
+        parser.add_argument("expid", nargs="*")
         args = parser.parse_args(sys.argv[2:])
         files_dict = {}
         for x in args.expid:
@@ -62,17 +67,18 @@ These commands are available for interacting with Dora:
 
     def search(self):
         parser = argparse.ArgumentParser(
-            description='Download objects and refs from another repository')
-        parser.add_argument('searchstr',nargs="*")
-        parser.add_argument('-a','--attribute',default='pathPP')
+            description="Download objects and refs from another repository"
+        )
+        parser.add_argument("searchstr", nargs="*")
+        parser.add_argument("-a", "--attribute", default="pathPP")
         args = parser.parse_args(sys.argv[2:])
-        search_results = doralite.search(args.searchstr[0],
-                                         attribute=args.attribute)
-        if len(args.searchstr)>1:
+        search_results = doralite.search(args.searchstr[0], attribute=args.attribute)
+        if len(args.searchstr) > 1:
             for x in args.searchstr[1::]:
-                search_results = {k:v for (k,v) in search_results.items() if x in v}
+                search_results = {k: v for (k, v) in search_results.items() if x in v}
         for k in sorted(search_results.keys()):
-            print(f' * {k}  {search_results[k]}')
+            print(f" * {k}  {search_results[k]}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     DoraCLI()
