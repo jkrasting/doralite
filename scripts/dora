@@ -3,7 +3,10 @@
 import argparse
 import doralite
 import gfdlvitals
+from tabulate import tabulate
 import sys
+
+import pandas as pd
 
 
 class PlotArgs:
@@ -23,6 +26,7 @@ class DoraCLI(object):
             usage="""dora <command> [<args>]
 
 These commands are available for interacting with Dora:
+   list       Lists experiments in a specific project
    search     Searchs experiments listed on Dora for a given string
    info       Prints info/metadata associated with an experiment ID
    plot       Plots scalar diagnostics given a set of Dora IDs
@@ -78,6 +82,38 @@ These commands are available for interacting with Dora:
                 search_results = {k: v for (k, v) in search_results.items() if x in v}
         for k in sorted(search_results.keys()):
             print(f" * {k}  {search_results[k]}")
+
+    def list(self):
+        parser = argparse.ArgumentParser(description="Lists experiments in a project")
+        parser.add_argument("project_name")
+        args = parser.parse_args(sys.argv[2:])
+        results = doralite.list_project(args.project_name)["project"]
+
+        sections = [x["title"] for x in results]
+
+        if len(sections) > 1:
+            print("")
+            for n, x in enumerate(sections):
+                print(f"  {n+1} - {x}")
+            print("")
+
+            print(
+                f"The {args.project_name} project has sub-headings. Make a selection: ",
+                end="",
+            )
+            element = input()
+            index = int(element) - 1
+
+        else:
+            index = 0
+
+        df = pd.DataFrame(results[index]["experiments"])
+        df = df.set_index("id")
+
+        df = df[["userName", "expName"]]
+
+        print("")
+        print(tabulate(df, headers=["ID", "User Name", "Experiment Name"]))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="doralite",
-    version="4.0.0",
+    version="4.1.0",
     author="John Krasting",
     author_email="John.Krasting@noaa.gov",
     description="A lightweight package for interacting with Dora",

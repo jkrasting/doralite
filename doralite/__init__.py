@@ -53,8 +53,24 @@ def search(string, attribute="pathPP"):
     return dict((int(k), x[k][attribute]) for k in x.keys())
 
 
+def list_project(project_name):
+    """Returns dictionary of an attribute keyed by the id of experiments
+    matching "string".
+
+    By default, the returned attribute is the post-processing path ("pathPP")
+    but others such as "pathDB", "pathAnalysis" and "expName" are allowed.
+    If no match is found an empty dictionary is returned."""
+    query = api + "api/list?project_name=" + str(project_name)
+    try:
+        x = json.loads(requests.get(url=query).content)
+    except:
+        x = json.loads(requests.get(url=query, verify=False).content)
+    return x
+
+
 def global_mean_data(
-    expid, component,
+    expid,
+    component,
 ):
     """
     Fetches global means from central server
