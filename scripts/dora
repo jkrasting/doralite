@@ -85,23 +85,28 @@ These commands are available for interacting with Dora:
 
     def list(self):
         parser = argparse.ArgumentParser(description="Lists experiments in a project")
-        parser.add_argument("project_name")
+        parser.add_argument("project_name", nargs="+")
+        parser.add_argument("--pp", help="Print post-processing path", action="store_true")
         args = parser.parse_args(sys.argv[2:])
-        results = doralite.list_project(args.project_name)["project"]
+
+        results = doralite.list_project(args.project_name[0])["project"]
 
         sections = [x["title"] for x in results]
 
         if len(sections) > 1:
-            print("")
-            for n, x in enumerate(sections):
-                print(f"  {n+1} - {x}")
-            print("")
+            if len(args.project_name) == 2:
+                element = int(args.project_name[1])
+            else:
+                print("")
+                for n, x in enumerate(sections):
+                    print(f"  {n+1} - {x}")
+                print("")
 
-            print(
-                f"The {args.project_name} project has sub-headings. Make a selection: ",
-                end="",
-            )
-            element = input()
+                print(
+                    f"The {args.project_name[0]} project has sub-headings. Make a selection: ",
+                    end="",
+                )
+                element = input()
             index = int(element) - 1
 
         else:
@@ -110,7 +115,9 @@ These commands are available for interacting with Dora:
         df = pd.DataFrame(results[index]["experiments"])
         df = df.set_index("id")
 
-        df = df[["userName", "expName"]]
+        field_list = ["userName", "expName", "pathPP"] if args.pp is True else ["userName", "expName"]
+        df = df[field_list]
+        df = df.iloc[::-1]
 
         print("")
         print(tabulate(df, headers=["ID", "User Name", "Experiment Name"]))
