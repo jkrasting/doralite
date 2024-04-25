@@ -15,7 +15,7 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-api = "https://dora-dev.gfdl.noaa.gov/"
+api = "https://dora.gfdl.noaa.gov/"
 
 
 def proxy(status=True, url="http://localhost:3128"):
