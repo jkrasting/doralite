@@ -28,6 +28,25 @@ def proxy(status=True, url="http://localhost:3128"):
 
 
 def dora_metadata(expid):
+    """
+    Returns a dictionary of metadata for a given GFDL experiment ID or project ID.
+
+    ARGUMENTS
+    ----------
+    expid [int or str] -- GFDL-wide master experiment ID or a project-specific ID
+        expid can be an int or a purely numeric string, in which case it is interpreted
+        as a GFDL-wide master experiment ID, or a string containing a project name (e.g.
+        "cm5") followed by a "-" and then a project-specific ID number string (e.g. "1").
+
+    RETURNS
+    -------
+    dict
+
+    EXAMPLES
+    -------
+    >>> pdict = doralite.dora_metadata(1767)
+    >>> pp = doralite.dora_metadata("odiv-209")['pathPP']
+    """
     query = api + "api/info?id=" + str(expid)
     try:
         x = requests.get(url=query).content
@@ -54,19 +73,51 @@ def search(string, attribute="pathPP"):
 
 
 def list_project(project_name):
-    """Returns dictionary of an attribute keyed by the id of experiments
-    matching "string".
+    """Returns dictionary containing all categories of experiments within
+    a GFDL project.
 
-    By default, the returned attribute is the post-processing path ("pathPP")
-    but others such as "pathDB", "pathAnalysis" and "expName" are allowed.
-    If no match is found an empty dictionary is returned."""
+    ARGUMENTS
+    ---------
+    project_name [str] -- GFDL project_name, e.g. "odiv" or "cm5"
+
+    EXAMPLES
+    --------
+    >>> project_list = doralite.list_project("odiv")['project']
+    >>> project_titles = [project["title"] for project in project_list]
+    >>> project_titles
+    ['OM5 experiments',
+     'OMIP 0.125 experiments',
+     'OMIP 0.25 experiments',
+     'OMIP 0.5 experiments',
+     'JRA-55do experiments',
+     'CORE2 IAF experiments',
+     'CM4 experiments',
+     'MOM6 regional experiments',
+     'AMIP experiments',
+     'DECK experiments']
+    
+    >>> om5_experiments = project_list[project_titles.index('OM5 experiments')]['experiments']
+    >>> om5_expNames = [expdict['expName'] for expdict in om5_experiments]
+    >>> master_ids = [expdict['master_id'] for expdict in om5_experiments]
+    >>> list(np.array(om5_expNames)[np.argsort(master_ids)][0:10])
+    ['om5_b00_cycle1_c4',
+     'om5_b00_cycle1_c5',
+     'om5_b00_nonBouss_c4',
+     'om5_b00_coorconfigALE',
+     'BUG_om5_b00_BBL_VS_KV0_MStrC1p25_minThk_Bodner0p03_c5',
+     'om5_b00_ePBLbisect',
+     'om5_b00_nonSymmetric',
+     'BUG_om5_b00_BBL_VS_KV0_MStrC1p25_minThk_Bodner0p03_c4',
+     'om5_b00_cycle1_c4_repro',
+     'om5_b00_nonBouss_c5']
+    """
+
     query = api + "api/list?project_name=" + str(project_name)
     try:
         x = json.loads(requests.get(url=query).content)
     except:
         x = json.loads(requests.get(url=query, verify=False).content)
     return x
-
 
 def global_mean_data(
     expid,
