@@ -5,6 +5,8 @@ import doralite
 import gfdlvitals
 from tabulate import tabulate
 import sys
+import subprocess
+from tqdm import tqdm
 
 import pandas as pd
 
@@ -29,6 +31,7 @@ These commands are available for interacting with Dora:
    list       Lists experiments in a specific project
    search     Searchs experiments listed on Dora for a given string
    info       Prints info/metadata associated with an experiment ID
+   repair     Repair FREPP postprocessing
    plot       Plots scalar diagnostics given a set of Dora IDs
                  e.g. dora plot globalAveOcean idnum1 <idnum2 idnum3 ...>
 """,
@@ -83,10 +86,39 @@ These commands are available for interacting with Dora:
         for k in sorted(search_results.keys()):
             print(f" * {k}  {search_results[k]}")
 
+    def repair(self):
+        parser = argparse.ArgumentParser(description="Repairs frepp postprocessing")
+        parser.add_argument("expid", nargs="+")
+        parser.add_argument("-x", help="Execute commands", action="store_true")
+        args = parser.parse_args(sys.argv[2:])
+
+        expid = args.expid
+        if len(expid) > 1:
+            components = expid[1:]
+        else:
+            components = None
+        expid = expid[0]
+
+        commands = doralite.frepp.repair_all_components(expid, components)
+
+        if args.x is True:
+            for cmd in tqdm(commands, desc="Executing commands", unit="cmd"):
+                subprocess.run(
+                    cmd,
+                    shell=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        else:
+            for cmd in commands:
+                print(cmd)
+
     def list(self):
         parser = argparse.ArgumentParser(description="Lists experiments in a project")
         parser.add_argument("project_name", nargs="+")
-        parser.add_argument("--pp", help="Print post-processing path", action="store_true")
+        parser.add_argument(
+            "--pp", help="Print post-processing path", action="store_true"
+        )
         args = parser.parse_args(sys.argv[2:])
 
         results = doralite.list_project(args.project_name[0])["project"]
@@ -115,7 +147,11 @@ These commands are available for interacting with Dora:
         df = pd.DataFrame(results[index]["experiments"])
         df = df.set_index("id")
 
-        field_list = ["userName", "expName", "pathPP"] if args.pp is True else ["userName", "expName"]
+        field_list = (
+            ["userName", "expName", "pathPP"]
+            if args.pp is True
+            else ["userName", "expName"]
+        )
         df = df[field_list]
         df = df.iloc[::-1]
 
