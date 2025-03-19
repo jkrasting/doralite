@@ -17,6 +17,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 api = "https://dora.gfdl.noaa.gov/"
 
+from . import frepp
+
 
 def proxy(status=True, url="http://localhost:3128"):
     """Sets https proxy"""
