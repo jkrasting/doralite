@@ -192,9 +192,10 @@ class tsgroup:
 
         # Remove state files if they exist
         statefiles = [f"{statedir}/{self.component}.{year}" for year in self.missing]
-        statefiles = [x for x in statefiles if os.path.exists(x)]
-        cmd = f"rm -f {str(' ').join(statefiles)}"
-        commands.append(cmd)
+        if len(statefiles) > 0:
+            statefiles = [x for x in statefiles if os.path.exists(x)]
+            cmd = f"rm -f {str(' ').join(statefiles)}"
+            commands.append(cmd)
 
         # Construct frepp command
         xmlpath = self.metadata["pathXML"]
