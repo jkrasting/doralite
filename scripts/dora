@@ -63,7 +63,7 @@ These commands are available for interacting with Dora:
         )
         parser.add_argument("expid")
         args = parser.parse_args(sys.argv[2:])
-        info = doralite.dora_catalog(args.expid).decode()
+        info = doralite.catalog_raw(args.expid).decode()
         print()
         print(info)
 

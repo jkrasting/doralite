@@ -41,15 +41,23 @@ def dora_metadata(expid):
     return x
 
 
-def dora_catalog(expid):
+def catalog_raw(expid, decompress=True):
     query = api + "api/catalog?id=" + str(expid) + "&compressed=true"
     try:
         x = requests.get(url=query).content
     except:
         x = requests.get(url=query, verify=False).content
-    with gzip.GzipFile(fileobj=BytesIO(x), mode='rb') as f:
-        content = f.read()
+    x = BytesIO(x)
+    if decompress is True:
+        with gzip.GzipFile(fileobj=x, mode='rb') as f:
+            content = f.read()
+    else:
+        content = x
     return content
+
+
+def catalog(expid):
+    return pd.read_csv(catalog_raw(expid, decompress=False), compression="gzip", low_memory=False)
 
 
 def search(string, attribute="pathPP"):
