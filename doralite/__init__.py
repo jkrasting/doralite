@@ -10,7 +10,8 @@ import pandas as pd
 import requests
 
 import matplotlib.pyplot as plt
-
+import gzip
+from io import BytesIO
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -38,6 +39,25 @@ def dora_metadata(expid):
     x = json.loads(x)
     x["pathHistory"] = x["pathPP"].replace("/pp", "/history")
     return x
+
+
+def catalog_raw(expid, decompress=True):
+    query = api + "api/catalog?id=" + str(expid) + "&compressed=true"
+    try:
+        x = requests.get(url=query).content
+    except:
+        x = requests.get(url=query, verify=False).content
+    x = BytesIO(x)
+    if decompress is True:
+        with gzip.GzipFile(fileobj=x, mode='rb') as f:
+            content = f.read()
+    else:
+        content = x
+    return content
+
+
+def catalog(expid):
+    return pd.read_csv(catalog_raw(expid, decompress=False), compression="gzip", low_memory=False)
 
 
 def search(string, attribute="pathPP"):
