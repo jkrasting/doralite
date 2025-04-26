@@ -32,6 +32,7 @@ These commands are available for interacting with Dora:
    search     Searchs experiments listed on Dora for a given string
    info       Prints info/metadata associated with an experiment ID
    repair     Repair FREPP postprocessing
+   catalog    Show intake catalog / csv of post-processed output
    plot       Plots scalar diagnostics given a set of Dora IDs
                  e.g. dora plot globalAveOcean idnum1 <idnum2 idnum3 ...>
 """,
@@ -46,7 +47,7 @@ These commands are available for interacting with Dora:
 
     def info(self):
         parser = argparse.ArgumentParser(
-            description="Download objects and refs from another repository"
+            description="Returns experiment metadata"
         )
         parser.add_argument("expid")
         args = parser.parse_args(sys.argv[2:])
@@ -55,6 +56,16 @@ These commands are available for interacting with Dora:
         for k in sorted(info.keys()):
             if len(str(info[k])) > 0:
                 print("{:14}".format(k) + str(info[k]))
+
+    def catalog(self):
+        parser = argparse.ArgumentParser(
+            description="Displays intake catalog / csv for an experiment"
+        )
+        parser.add_argument("expid")
+        args = parser.parse_args(sys.argv[2:])
+        info = doralite.dora_catalog(args.expid).decode()
+        print()
+        print(info)
 
     def plot(self):
         parser = argparse.ArgumentParser(
