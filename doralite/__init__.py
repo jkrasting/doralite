@@ -13,6 +13,9 @@ import matplotlib.pyplot as plt
 import gzip
 from io import BytesIO
 import urllib3
+import intake_esm
+import datetime
+import subprocess
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -57,7 +60,106 @@ def catalog_raw(expid, decompress=True):
 
 
 def catalog(expid):
-    return pd.read_csv(catalog_raw(expid, decompress=False), compression="gzip", low_memory=False)
+    df = pd.read_csv(catalog_raw(expid, decompress=False), compression="gzip", low_memory=False)
+    exp = dora_metadata(expid)
+    for key in [
+        "source_id",
+        "experiment_id",
+        "frequency",
+        "table_id",
+        "grid_label",
+        "realm",
+        "member_id",
+        "chunk_freq",
+    ]:
+        df[key] = df[key].fillna("unknown")
+    
+    esmcat_memory = {
+        "esmcat": {  # <== Metadata only here
+            "esmcat_version": "0.0.1",
+            "attributes": [
+                {"column_name": "activity_id", "vocabulary": "", "required": False},
+                {"column_name": "institution_id", "vocabulary": "", "required": False},
+                {"column_name": "source_id", "vocabulary": "", "required": False},
+                {"column_name": "experiment_id", "vocabulary": "", "required": True},
+                {
+                    "column_name": "frequency",
+                    "vocabulary": "https://raw.githubusercontent.com/NOAA-GFDL/CMIP6_CVs/master/CMIP6_frequency.json",
+                    "required": True,
+                },
+                {"column_name": "realm", "vocabulary": "", "required": True},
+                {"column_name": "table_id", "vocabulary": "", "required": False},
+                {"column_name": "member_id", "vocabulary": "", "required": False},
+                {"column_name": "grid_label", "vocabulary": "", "required": False},
+                {"column_name": "variable_id", "vocabulary": "", "required": True},
+                {"column_name": "time_range", "vocabulary": "", "required": True},
+                {"column_name": "chunk_freq", "vocabulary": "", "required": False},
+                {"column_name": "platform", "vocabulary": "", "required": False},
+                {"column_name": "target", "vocabulary": "", "required": False},
+                {
+                    "column_name": "cell_methods",
+                    "vocabulary": "",
+                    "required": False,
+                },  # Adjusted from "enhanced" -> False
+                {"column_name": "path", "vocabulary": "", "required": True},
+                {
+                    "column_name": "dimensions",
+                    "vocabulary": "",
+                    "required": False,
+                },  # Adjusted from "enhanced" -> False
+                {"column_name": "version_id", "vocabulary": "", "required": False},
+                {
+                    "column_name": "standard_name",
+                    "vocabulary": "",
+                    "required": False,
+                },  # Adjusted from "enhanced" -> False
+            ],
+            "assets": {
+                "column_name": "path",
+                "format": "netcdf",
+                "format_column_name": None,
+            },
+            "aggregation_control": {
+                "variable_column_name": "variable_id",
+                "groupby_attrs": [
+                    "source_id",
+                    "experiment_id",
+                    "frequency",
+                    "table_id",
+                    "grid_label",
+                    "realm",
+                    "member_id",
+                    "chunk_freq",
+                ],
+                "aggregations": [
+                    {"type": "union", "attribute_name": "variable_id", "options": {}},
+                    {
+                        "type": "join_existing",
+                        "attribute_name": "time_range",
+                        "options": {
+                            "dim": "time",
+                            "coords": "minimal",
+                            "compat": "override",
+                        },
+                    },
+                ],
+            },
+            "id": exp["expName"],
+            "description": exp["expName"],
+            "title": exp["expName"],
+            "last_updated": datetime.datetime.now().isoformat(),
+            "catalog_file": "dummy.csv",
+        },
+        "df": df,  # <== Your loaded DataFrame
+    }
+    
+    return intake_esm.esm_datastore(esmcat_memory)
+
+
+def dmget(files):
+    files = [files] if not isinstance(files,list) else files
+    cmd = ["dmget"]+files
+    _ = subprocess.check_output(cmd) 
 
 
 def search(string, attribute="pathPP"):
